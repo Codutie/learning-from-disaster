@@ -1,7 +1,7 @@
-rm(list = ls())
-
 
 ########### PACKAGES ###########
+
+rm(list = ls())
 
 install_and_load <- function(libraries)
 {
@@ -9,19 +9,18 @@ install_and_load <- function(libraries)
   if(length(new.packages)) install.packages(new.packages)
   sapply(libs, require, character.only = T, warn.conflicts = F)
 }
-libs <- c("plyr", "dplyr", "ggplot2", "readr", "xgboost", "caret", "Matrix", "Metrics", "miscTools", "glmnet", "caretEnsemble", "rpart")
+libs <- c("plyr", "dplyr","readr","caret", "Metrics", "miscTools", "glmnet", "caretEnsemble", "rpart")
 install_and_load(libs)
+
+
 
 
 ########### LOAD DATA ###########
 
-train <- read.csv("data/train.csv", stringsAsFactors = F)
-test <- read.csv("data/test.csv", stringsAsFactors = F)
+train <- read.csv("../input/train.csv", stringsAsFactors = F)
+test <- read.csv("../input/test.csv", stringsAsFactors = F)
 full <- bind_rows(train, test)
 full$Survived <- ifelse(full$Survived == 1, "one", "zero") # need to do it to avoid error messages in caret trainControl classProb = T
-
-
-
 
 
 
@@ -66,6 +65,8 @@ full$Embarked[c(62, 830)] <- 'C'
 
 
 
+
+
 ########### ENSEMBLE MODELING ###########
 
 features <- c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked", "Title", "FSizeD", "Child")
@@ -97,27 +98,16 @@ model_list <- caretList(
   metric="ROC",
   trControl=my_control,
   tuneList = list(
-     rf = caretModelSpec(method = "rf", tuneGrid = data.frame(mtry = round(sqrt(length(features))))),
-     nnet = caretModelSpec(method = "nnet"),
-     adaboost = caretModelSpec(method = "adaboost")
-     ))
+    rf = caretModelSpec(method = "rf", tuneGrid = data.frame(mtry = round(sqrt(length(features))))),
+    nnet = caretModelSpec(method = "nnet"),
+    adaboost = caretModelSpec(method = "adaboost")
+  ))
 
 
-modelCor(resamples(model_list))
-
-#           rf      nnet  adaboost
-# rf       1.0000000 0.3447546 0.7782943
-# nnet     0.3447546 1.0000000 0.2417687
-# adaboost 0.7782943 0.2417687 1.0000000
-
-model_preds <- lapply(model_list, predict, newdata=test, type="prob")
-model_preds <- lapply(model_preds, function(x) x[, 1])
-model_preds <- data.frame(model_preds)
-
+## ************* to check correlations between models ********************** ##
+## modelCor(resamples(model_list))
 
 # glm ensemble
-
-set.seed(1)
 ensemble <- caretStack(
   model_list,
   method="glm",
@@ -131,31 +121,56 @@ ensemble <- caretStack(
   )
 )
 
-ens_preds <- predict(ensemble, newdata=test, type="prob")
-model_preds$ensemble <- ens_preds
-# caTools::colAUC(model_preds, testing$Survived)
-
-
 
 ########### PREDICTION ###########
 
-preds <- predict(ensemble, newdata = test, type = "raw")
-preds <- ifelse(preds == "zero", 0, 1)
-
-
-# submission
+preds <- round(predict(ensemble, newdata = test, type = "prob"))
 submission <- data.frame(PassengerId = test$PassengerId, Survived = preds)
-write.csv(submission, "submission.csv", row.names = F)
+
+head(submission)
+
+write.csv(submission, file = "submission.csv", row.names = F)
 
 
+## If you want to tune the model you can use the code below to check prediction performances against a training - testing
+## data split :
 
-
-
-
-
-
-
+# ########## TUNE MODEL #################
+# 
 # set.seed(5)
 # inTrain <- createDataPartition(y = train$Survived, p = .8, list = FALSE)
 # training <- train[ inTrain,]
 # testing <- train[-inTrain,]
+# 
+# my_control <- trainControl(
+#   method="boot",
+#   repeats=5,
+#   number=25,
+#   verboseIter = F,
+#   savePredictions=TRUE,
+#   summaryFunction=twoClassSummary,
+#   classProbs = T,
+#   index=createResample(training$Survived, 25)
+# )
+# 
+# set.seed(121)
+# model_list <- caretList(
+#   frml, 
+#   data=training,
+#   metric="ROC",
+#   trControl=my_control,
+#   tuneList = list(
+#     rf = caretModelSpec(method = "rf", tuneGrid = data.frame(mtry = round(sqrt(length(features))))),
+#     nnet = caretModelSpec(method = "nnet"),
+#     adaboost = caretModelSpec(method = "adaboost")
+#   ))
+# 
+# 
+# ## Predictions
+# 
+# model_preds <- lapply(model_list, predict, newdata=testing, type="prob")
+# model_preds <- lapply(model_preds, function(x) x[, 1])
+# model_preds <- data.frame(model_preds)
+# ens_preds <- predict(ensemble, newdata=testing, type="prob")
+# model_preds$ensemble <- ens_preds
+# caTools::colAUC(model_preds, testing$Survived)
