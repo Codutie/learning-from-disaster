@@ -1,14 +1,6 @@
 rm(list = ls())
 
 
-########### LOAD DATA ###########
-
-train <- read.csv("data/train.csv", stringsAsFactors = F)
-test <- read.csv("data/test.csv", stringsAsFactors = F)
-full <- bind_rows(train, test)
-full$Survived <- ifelse(full$Survived == 1, "one", "zero") # need to do it to avoid error messages in caret trainControl classProb = T
-
-
 ########### PACKAGES ###########
 
 install_and_load <- function(libraries)
@@ -17,8 +9,18 @@ install_and_load <- function(libraries)
   if(length(new.packages)) install.packages(new.packages)
   sapply(libs, require, character.only = T, warn.conflicts = F)
 }
-libs <- c("plyr", "dplyr", "ggplot2", "readr", "xgboost", "caret", "Matrix", "Metrics", "miscTools", "glmnet")
+libs <- c("plyr", "dplyr", "ggplot2", "readr", "xgboost", "caret", "Matrix", "Metrics", "miscTools", "glmnet", "caretEnsemble", "rpart")
 install_and_load(libs)
+
+
+########### LOAD DATA ###########
+
+train <- read.csv("data/train.csv", stringsAsFactors = F)
+test <- read.csv("data/test.csv", stringsAsFactors = F)
+full <- bind_rows(train, test)
+full$Survived <- ifelse(full$Survived == 1, "one", "zero") # need to do it to avoid error messages in caret trainControl classProb = T
+
+
 
 
 
@@ -76,10 +78,6 @@ full[, char_features] <- lapply(full[, char_features], as.factor)
 train <- full[!is.na(full$Survived), ]
 test <- full[is.na(full$Survived), ]; test$Survived <- NULL
 
-# set.seed(5)
-# inTrain <- createDataPartition(y = train$Survived, p = .8, list = FALSE)
-# training <- train[ inTrain,]
-# testing <- train[-inTrain,]
 
 my_control <- trainControl(
   method="boot",
@@ -89,7 +87,7 @@ my_control <- trainControl(
   savePredictions=TRUE,
   summaryFunction=twoClassSummary,
   classProbs = T,
-  index=createResample(training$Survived, 25)
+  index=createResample(train$Survived, 25)
 )
 
 set.seed(121)
@@ -101,7 +99,8 @@ model_list <- caretList(
   tuneList = list(
      rf = caretModelSpec(method = "rf", tuneGrid = data.frame(mtry = round(sqrt(length(features))))),
      nnet = caretModelSpec(method = "nnet"),
-     adaboost = caretModelSpec(method = "adaboost")))
+     adaboost = caretModelSpec(method = "adaboost")
+     ))
 
 
 modelCor(resamples(model_list))
@@ -112,7 +111,7 @@ modelCor(resamples(model_list))
 # adaboost 0.7782943 0.2417687 1.0000000
 
 model_preds <- lapply(model_list, predict, newdata=test, type="prob")
-model_preds <- lapply(model_preds, function(x) x[, 2])
+model_preds <- lapply(model_preds, function(x) x[, 1])
 model_preds <- data.frame(model_preds)
 
 
@@ -147,3 +146,16 @@ preds <- ifelse(preds == "zero", 0, 1)
 # submission
 submission <- data.frame(PassengerId = test$PassengerId, Survived = preds)
 write.csv(submission, "submission.csv", row.names = F)
+
+
+
+
+
+
+
+
+
+# set.seed(5)
+# inTrain <- createDataPartition(y = train$Survived, p = .8, list = FALSE)
+# training <- train[ inTrain,]
+# testing <- train[-inTrain,]
