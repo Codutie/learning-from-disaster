@@ -106,7 +106,7 @@ model_list <- caretList(
 
 modelCor(resamples(model_list))
 
-# rf      nnet  adaboost
+#           rf      nnet  adaboost
 # rf       1.0000000 0.3447546 0.7782943
 # nnet     0.3447546 1.0000000 0.2417687
 # adaboost 0.7782943 0.2417687 1.0000000
