@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "## https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/deeplearning/deeplearning.R\n\n# The following two commands remove any previously installed H2O packages for R.\nif (\"package:h2o\" %in% search()) { detach(\"package:h2o\", unload=TRUE) }\nif (\"h2o\" %in% rownames(installed.packages())) { remove.packages(\"h2o\") }\n\n# Next, we download packages that H2O depends on.\npkgs <- c(\"methods\",\"statmod\",\"stats\",\"graphics\",\"RCurl\",\"jsonlite\",\"tools\",\"utils\",\"h2o\",\"h2oEnsemble\")\nfor (pkg in pkgs) {\n  if (! (pkg %in% rownames(installed.packages()))) { install.packages(pkg) }\n}\n\n# Now we download, install and initialize the H2O package for R.\ninstall.packages(\"h2o\", type=\"source\", repos=(c(\"http://h2o-release.s3.amazonaws.com/h2o/rel-turan/4/R\")))\nlibrary(h2o)\nlocalH2O = h2o.init(nthreads=-1)\n\n## loading data & libraries\nlapply(pkgs, require, character.only = T)\n\n## loading libraries\nload(\"Workspaces/baseData_cleaned.RData\")\n\nrmLastValues <- function(pattern = \"Last.value.\")\n{\n  keys <- h2o.ls(h2oServer, pattern = pattern)$Key\n  if (!is.null(keys))\n    h2o.rm(h2oServer, keys)\n  invisible(keys)\n}\n\n## preparing data for h2o\nmydata$TARGET <- as.factor(train.y)\ntrain <- as.h2o(mydata)\nmytest <- as.h2o(mytest)\nresponse <- label_name\n\nsplits <- h2o.splitFrame(train, c(0.6,0.2), seed=1234)\ntrain  <- h2o.assign(splits[[1]], \"train.hex\") # 60%\nvalid  <- h2o.assign(splits[[2]], \"valid.hex\") # 20%\ntest   <- h2o.assign(splits[[3]], \"test.hex\")  # 20%\n\nhyper_params <- list(\n  hidden=list(c(32,32,32),c(64,64)),\n  input_dropout_ratio=c(0,0.05),\n  rate=c(0.01,0.02),\n  rate_annealing=c(1e-8,1e-7,1e-6)\n)\nhyper_params\n\ngrid <- h2o.grid(\n  algorithm=\"deeplearning\",\n  grid_id=\"dl_grid\", \n  training_frame=train,\n  validation_frame=valid, \n  x=predictors, \n  y=response,\n  epochs=10,\n  stopping_metric=\"misclassification\",\n  stopping_tolerance=1e-2,        ## stop when misclassification does not improve by >=1% for 2 scoring events\n  stopping_rounds=2,\n  score_validation_samples=10000, ## downsample validation set for faster scoring\n  score_duty_cycle=0.025,         ## don't score more than 2.5% of the wall time\n  adaptive_rate=F,                ## manually tuned learning rate\n  momentum_start=0.5,             ## manually tuned momentum\n  momentum_stable=0.9, \n  momentum_ramp=1e7, \n  l1=1e-5,\n  l2=1e-5,\n  activation=c(\"Rectifier\"),\n  max_w2=10,                      ## can help improve stability for Rectifier\n  hyper_params=hyper_params\n)\n\n\n#                                \n#Let's see which model had the lowest validation error:\n#\ngrid <- h2o.getGrid(\"dl_grid\",sort_by=\"err\",decreasing=FALSE)\ngrid\nh2o.getGrid(\"dl_grid\",sort_by=\"auc\",decreasing=TRUE)\nbest_model <- h2o.getModel(grid@model_ids[[1]])\nh2o.getModel(grid@model_ids)\nprint(best_model@allparameters)\nprint(h2o.performance(best_model, valid=T))\n",
+    "created" : 1499947339894.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4069369352",
+    "id" : "76921002",
+    "lastKnownWriteTime" : 1458762239,
+    "last_content_update" : 1458762239,
+    "path" : "~/Kaggle/Santander Customer Satisfaction/RFiles/h2o_deeplearning.R",
+    "project_path" : null,
+    "properties" : {
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
